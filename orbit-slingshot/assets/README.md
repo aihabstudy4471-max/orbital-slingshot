@@ -25,6 +25,11 @@ name matches (`probe.png` and `probe.jpg` both work).
 | `sfx/boss_attack.wav` | Boss attacks (claw timer ran out) | – |
 | `sfx/claw_glow.wav` | A claw starts glowing | – |
 
+Placeholder sounds
+- `sfx/*.wav` and `music.wav` are currently computer-generated placeholders made by
+  `python tools/make_placeholder_sounds.py`. Just overwrite them with real sounds (same names).
+  Re-running the script won't touch files that already exist (unless you add `--force`).
+
 Tips
 - Draw at 2–4x the listed size; the game scales it down smoothly.
 - Planets are round hitboxes, so keep planet art filling a circle (rings can stick out a bit).
