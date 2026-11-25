@@ -60,6 +60,9 @@ without Fn – they may rebind these to letters).
 ## Working with the user
 - Git: push straight to `main` (user's choice, simpler for them). The user pushes their own
   changes before asking for work and runs `git pull` afterwards.
+- After EVERY change you push, end your reply with the "Get the update" steps (user asked for this):
+  1) `git add .`  2) `git commit -m "my changes"`  3) `git pull`  - with a note that
+  "nothing to commit" is fine, and what to do if a merge message editor opens (save + close).
 - The user is learning; they want to understand the code and write some of it themselves.
   Explain where things go, and offer "fill in the blanks" versions when they ask.
 - They added the gravity number label + `draw_gravity_rings` (their own values) in main.py.
