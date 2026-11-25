@@ -21,6 +21,7 @@
 - `level_select.py` – level select grid. Every level is playable (no locking, user's choice).
   Normal levels and boss levels (any level with `'boss'`) get separate rows. Stars are kept in
   memory only – no save file yet (user said not yet).
+- `tools/make_placeholder_sounds.py` – generates the placeholder sfx/music (pure Python, no deps).
 - `tools/solve_levels.py` – brute-forces shots to check every level is beatable and all stars are
   reachable. **Run after editing levels.**
 - `assets/` – art/sound from the designer. Everything is optional; missing files fall back to drawn
@@ -87,7 +88,8 @@ without Fn – they may rebind these to letters).
 - [x] Level name banner at level start; HUD says "Boss N" on boss levels
 - [ ] Playtest with real players and retune (Levels 1-5 were never retuned - user found L2 hard)
 - [ ] Saving best stars to a file (later)
-- [ ] Drop in designer's art + sounds + music (see assets/README.md)
+- [x] Placeholder sfx + music loop (tools/make_placeholder_sounds.py, never overwrites real files)
+- [ ] Drop in designer's art + real sounds + music (see assets/README.md)
 - [ ] Polish: menus, transitions, juice
 - [ ] Build/package for submission (leave the last day free for this)
 
