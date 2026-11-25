@@ -103,18 +103,21 @@ class Probe():
         self.trail = [(x, y)]
         self.state = 'flying'       # 'flying', 'won', 'crashed', 'lost'
         self.hit_planet = None
+        self.boss_part = None
         self.stars_this_shot = 0
 
-    def update(self, planets, target, stars, bounds, frame_dt=1.0 / FPS, move_planets=True):
-        """Advance one frame. Same code is used by the game AND the level solver."""
+    def update(self, planets, target, stars, bounds, frame_dt=1.0 / FPS, move_planets=True, boss=None):
+        """Advance one frame. Same code is used by the game AND the level solver.
+        On boss levels target is None and boss is a Boss."""
         if self.state != 'flying':
             return self.state
         w, h = bounds
+        pulls = planets + [boss] if boss else planets      # the boss has gravity too
         for _ in range(SUBSTEPS):
             if move_planets:
                 for p in planets:
                     p.update_orbit(PHYS_DT)
-            ax, ay = gravity_at(self.x, self.y, planets)
+            ax, ay = gravity_at(self.x, self.y, pulls)
             # semi-implicit Euler: update velocity first, then position (keeps orbits stable)
             self.vx += ax * PHYS_DT
             self.vy += ay * PHYS_DT
@@ -131,7 +134,13 @@ class Probe():
                     self.state = 'crashed'
                     self.hit_planet = p
                     return self.state
-            if target.hits(self.x, self.y, PROBE_RADIUS):
+            if boss:
+                part = boss.hit_part(self.x, self.y, PROBE_RADIUS)
+                if part:
+                    self.state = 'hit_boss'
+                    self.boss_part = part           # 'eye', 'claw' (glowing) or 'body'
+                    return self.state
+            if target and target.hits(self.x, self.y, PROBE_RADIUS):
                 self.state = 'won'
                 return self.state
             if (self.x < -OUT_OF_BOUNDS or self.x > w + OUT_OF_BOUNDS or
@@ -172,9 +181,113 @@ def build_level(data):
                       sprite=p.get('sprite'),
                       orbit=p.get('orbit'))
                for p in data['planets']]
-    target = Target(*data['target'])
+    target = Target(*data['target']) if 'target' in data else None     # boss levels have no target
     stars = [Star(*s) for s in data.get('stars', [])]
     return planets, target, stars
+
+
+# ------------------------------------------------------------------ boss
+class Boss():
+    """The alien boss. Settings come from the 'boss' section of a level in levels.py.
+
+    Hitboxes are circles, positioned relative to the boss's centre (x, y):
+      eye   - the weak spot, sticks out at the front (left) of the body
+      body  - behind the eye. Hitting it destroys the probe
+      claws - one above, one below. Hitting one only does damage while it GLOWS
+    """
+    BODY_OFFSET = (40, 0)
+    BODY_RADIUS = 110
+    EYE_OFFSET = (-40, -10)
+    EYE_RADIUS = 55
+    CLAW_OFFSETS = [(-150, -115), (-150, 115)]      # top claw, bottom claw
+    CLAW_RADIUS = 30
+
+    def __init__(self, data):
+        self.home_x, self.home_y = data['pos']
+        self.max_hp = data.get('hp', 6)
+        self.hover_range = data.get('hover_range', 120)
+        self.hover_time = data.get('hover_time', 4.0)
+        self.claw_every = data.get('claw_every', 7.0)
+        self.claw_window = data.get('claw_window', 3.0)
+        self.claw_damage = data.get('claw_damage', 3)
+        self.eye_damage = data.get('eye_damage', 1)
+        self.mass = data.get('mass', 4000)            # gravity strength, 0 = no pull
+        self.reset()
+
+    def reset(self):
+        self.hp = self.max_hp
+        self.time = 0.0
+        self.x, self.y = self.home_x, self.home_y
+        self.claw_timer = self.claw_every   # seconds until a claw starts glowing
+        self.glowing = None                 # None, 0 (top claw) or 1 (bottom claw)
+        self.glow_left = 0.0                # seconds left to hit the glowing claw
+        self.hurt_flash = 0.0               # eye flashes after being hit
+        self.attack_flash = 0.0             # claw swipe effect after an attack
+
+    def update(self, dt):
+        """Call once per frame. Returns 'glow' when a claw lights up, 'attack' when the
+        player was too slow, otherwise None."""
+        self.time += dt
+        self.y = self.home_y + math.sin(self.time * 2 * math.pi / self.hover_time) * self.hover_range
+        self.hurt_flash = max(0.0, self.hurt_flash - dt)
+        self.attack_flash = max(0.0, self.attack_flash - dt)
+
+        if self.glowing is None:
+            self.claw_timer -= dt
+            if self.claw_timer <= 0:
+                self.glowing = random.choice([0, 1])
+                self.glow_left = self.claw_window
+                return 'glow'
+        else:
+            self.glow_left -= dt
+            if self.glow_left <= 0:
+                self.attack_flash = 0.6
+                self.stop_glow()
+                return 'attack'
+        return None
+
+    def stop_glow(self):
+        self.glowing = None
+        self.claw_timer = self.claw_every
+
+    def part_pos(self, offset):
+        return self.x + offset[0], self.y + offset[1]
+
+    def eye_pos(self):
+        return self.part_pos(self.EYE_OFFSET)
+
+    def claw_pos(self, i):
+        return self.part_pos(self.CLAW_OFFSETS[i])
+
+    def body_pos(self):
+        return self.part_pos(self.BODY_OFFSET)
+
+    def hit_part(self, x, y, r):
+        """Which part (if any) a circle at (x, y) with radius r touches."""
+        def touching(pos, radius):
+            return math.hypot(pos[0] - x, pos[1] - y) < radius + r
+        if self.glowing is not None and touching(self.claw_pos(self.glowing), self.CLAW_RADIUS + 6):
+            return 'claw'           # +6 = a little generous, it's a timed bonus
+        if touching(self.eye_pos(), self.EYE_RADIUS):
+            return 'eye'
+        if any(touching(self.claw_pos(i), self.CLAW_RADIUS) for i in range(2)):
+            return 'body'           # non-glowing claws are just solid
+        if touching(self.body_pos(), self.BODY_RADIUS):
+            return 'body'
+        return None
+
+    def hits(self, x, y, r):
+        """Lets the aiming preview treat the boss like a planet (stops the dots at it)."""
+        return self.hit_part(x, y, r) is not None
+
+    def take_hit(self, part):
+        """Damage the boss. Returns the damage done."""
+        damage = self.claw_damage if part == 'claw' else self.eye_damage
+        self.hp = max(0, self.hp - damage)
+        self.hurt_flash = 0.4
+        if part == 'claw':
+            self.stop_glow()
+        return damage
 
 
 # ------------------------------------------------------------------ effects (no art needed)

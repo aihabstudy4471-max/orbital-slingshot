@@ -15,6 +15,18 @@ Screen is 1000 x 700. Coordinates are pixels, (0, 0) is top-left.
   stars    : optional collectibles [(x, y), ...] - 3 per level for the star rating
   hint     : optional text shown at the bottom of the screen
 
+BOSS LEVELS: same format, but no 'target' or 'stars'. Add 'probes' and a 'boss' section:
+  probes   : how many probes you get before the fight restarts
+  boss     :
+      pos         : (x, y) centre point it hovers around (keep it on the right, x ~800)
+      hp          : boss health. Eye hit = 1 damage
+      hover_range : how far up/down it moves (pixels)
+      hover_time  : seconds for one full up-and-down
+      claw_every  : seconds between a claw starting to glow
+      claw_window : seconds you have to hit the glowing claw before it attacks (-1 probe)
+      claw_damage : damage for hitting a glowing claw
+      mass        : boss gravity (0 = none, ~4000 = gentle pull)
+
 Run  python tools/solve_levels.py  after editing to check every level can be beaten.
 """
 
@@ -73,5 +85,25 @@ LEVELS = [
             {'pos': (500, 590), 'radius': 35, 'mass': 5000, 'color': (240, 200, 90)},
         ],
         'stars': [(330, 230), (500, 470), (680, 230)],
+    },
+    {
+        'name': 'The Watcher',
+        'hint': 'Hit the eye! When a claw glows, hit it fast for big damage',
+        'start': (100, 350),
+        'probes': 8,
+        'planets': [
+            {'pos': (420, 190), 'radius': 45, 'mass': 9000, 'color': (90, 150, 255)},
+            {'pos': (440, 520), 'radius': 40, 'mass': 8000, 'color': (230, 120, 70)},
+        ],
+        'boss': {
+            'pos': (800, 350),
+            'hp': 6,
+            'hover_range': 110,
+            'hover_time': 5.0,
+            'claw_every': 8.0,
+            'claw_window': 4.0,
+            'claw_damage': 3,
+            'mass': 4000,
+        },
     },
 ]

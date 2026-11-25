@@ -15,7 +15,7 @@ from multiprocessing import Pool
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
 
-from classes import Probe, build_level, MAX_LAUNCH_SPEED, FPS   # noqa: E402
+from classes import Probe, Boss, build_level, MAX_LAUNCH_SPEED, FPS   # noqa: E402
 from levels import LEVELS                                         # noqa: E402
 
 SCREEN = (1000, 700)
@@ -26,11 +26,14 @@ POWERS = [p / 40 for p in range(6, 41)]   # 0.15 .. 1.0
 def simulate(level_index, angle_deg, power):
     data = LEVELS[level_index]
     planets, target, stars = build_level(data)
+    boss = Boss(data['boss']) if 'boss' in data else None   # boss is frozen at its centre point
     a = math.radians(angle_deg)
     speed = power * MAX_LAUNCH_SPEED
     probe = Probe(*data['start'], math.cos(a) * speed, math.sin(a) * speed)
     while probe.state == 'flying':
-        probe.update(planets, target, stars, SCREEN, 1.0 / FPS)
+        probe.update(planets, target, stars, SCREEN, 1.0 / FPS, boss=boss)
+    if boss and probe.state == 'hit_boss' and probe.boss_part == 'eye':
+        return 'won', 0, angle_deg, power       # for bosses, "winning" = hitting the eye
     return probe.state, probe.stars_this_shot, angle_deg, power
 
 
@@ -42,6 +45,13 @@ def check(level_index):
     best = max(wins, key=lambda r: r[1]) if wins else None
     name = LEVELS[level_index]['name']
     pct = 100 * len(wins) / len(results)
+    if 'boss' in LEVELS[level_index]:
+        if not wins:
+            print('Level %d %-18s  BOSS: eye can NOT be hit (with boss at its centre point)' % (level_index + 1, name))
+            return False
+        print('Level %d %-18s  BOSS: %5.1f%% of shots hit the eye (boss at centre point) | e.g. angle %d deg, power %.2f'
+              % (level_index + 1, name, pct, wins[0][2], wins[0][3]))
+        return True
     if not best:
         print('Level %d %-18s  UNBEATABLE (0 winning shots)' % (level_index + 1, name))
         return False

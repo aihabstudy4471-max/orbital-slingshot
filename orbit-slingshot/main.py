@@ -15,7 +15,7 @@ import pygame
 
 pygame.init()
 
-from classes import (Probe, build_level, launch_velocity, predict_path, make_glow, FX,
+from classes import (Probe, Boss, build_level, launch_velocity, predict_path, make_glow, FX,
                      FPS, MAX_DRAG, PROBE_RADIUS, STAR_RADIUS)
 from levels import LEVELS
 
@@ -97,6 +97,18 @@ sounds = {
     'crash': load_sound('sfx', 'crash'),
     'win': load_sound('sfx', 'win'),
     'star': load_sound('sfx', 'star'),
+    'boss_hit': load_sound('sfx', 'boss_hit'),
+    'boss_attack': load_sound('sfx', 'boss_attack'),
+    'claw_glow': load_sound('sfx', 'claw_glow'),
+}
+
+# boss pieces from the designer (see assets/README.md). Missing = drawn placeholder shapes
+boss_images = {
+    'body': load_image('boss', 'boss_body', size=(Boss.BODY_RADIUS * 2 + 60, Boss.BODY_RADIUS * 2 + 60)),
+    'eye': load_image('boss', 'boss_eye', size=(Boss.EYE_RADIUS * 2, Boss.EYE_RADIUS * 2)),
+    'eye_hurt': load_image('boss', 'boss_eye_hurt', size=(Boss.EYE_RADIUS * 2, Boss.EYE_RADIUS * 2)),
+    'claw': load_image('boss', 'boss_claw', size=(Boss.CLAW_RADIUS * 3, Boss.CLAW_RADIUS * 3)),
+    'claw_glow': load_image('boss', 'boss_claw_glow', size=(Boss.CLAW_RADIUS * 3, Boss.CLAW_RADIUS * 3)),
 }
 music = asset('music')
 if music:
@@ -156,6 +168,9 @@ class Game():
         self.background = background_img or make_starfield(index)
         self.shots = 0
         self.fx = FX(mid_font)      # clear leftover particles from the last level
+        # boss levels: a level with a 'boss' section in levels.py
+        self.boss = Boss(self.data['boss']) if 'boss' in self.data else None
+        self.probes_left = self.data.get('probes', 6)
         self.reset_shot()
 
     def reset_shot(self):
@@ -178,7 +193,7 @@ class Game():
     def handle_event(self, event):
         if self.state == 'select':
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                self.state = 'select'
+                self.state = 'title'
                 return True
             chosen = self.select.handle_event(event)
             if chosen is not None:
@@ -188,7 +203,7 @@ class Game():
             if event.key == pygame.K_ESCAPE:
                 if self.state == 'title':
                     return False
-                self.state = 'title'
+                self.state = 'select'
             elif event.key == pygame.K_F1:
                 self.show_full_path = not self.show_full_path
             elif event.key == pygame.K_F2 and self.state != 'title':
@@ -201,7 +216,7 @@ class Game():
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self.state == 'aim':
                 self.dragging = True
-            elif self.state in ('title', 'won', 'finished'):
+            elif self.state in ('title', 'won', 'finished', 'boss_failed'):
                 self.on_confirm()
 
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -217,11 +232,17 @@ class Game():
             self.next_level()
         elif self.state == 'finished':
             self.state = 'select'
+        elif self.state == 'boss_failed':
+            self.load_level(self.level_index)       # restart the fight
 
     def launch(self, mouse):
         vx, vy, power = launch_velocity(self.start, mouse)
         if power < 0.08:            # tiny drag = probably a misclick, ignore it
             return
+        if self.boss:
+            if self.probes_left <= 0:
+                return
+            self.probes_left -= 1
         self.probe = Probe(*self.start, vx, vy)
         self.shots += 1
         self.state = 'flying'
@@ -231,11 +252,14 @@ class Game():
     # ---------------------------------------------------------- update
     def update(self):
         self.fx.update()
+        if self.boss and self.state in ('aim', 'flying', 'crashed'):
+            self.update_boss()
         # moving planets are frozen while aiming and only move once launched,
         # so the same shot always does the same thing (and matches the level solver)
         if self.state == 'flying':
             before = self.probe.stars_this_shot
-            result = self.probe.update(self.planets, self.target, self.stars, (SCREEN_WIDTH, SCREEN_HEIGHT))
+            result = self.probe.update(self.planets, self.target, self.stars, (SCREEN_WIDTH, SCREEN_HEIGHT),
+                                       boss=self.boss)
             if self.probe.stars_this_shot > before:
                 sounds['star'].play()
                 self.fx.text(self.probe.x, self.probe.y - 20, '+1', YELLOW)
@@ -250,6 +274,8 @@ class Game():
                 self.fx.text(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, 'Lost in space...', GREY)
                 self.state = 'crashed'
                 self.timer = CRASH_DELAY // 2
+            elif result == 'hit_boss':
+                self.probe_hit_boss(self.probe.boss_part)
             elif result == 'won':
                 sounds['win'].play()
                 self.fx.burst(self.target.x, self.target.y, CYAN, count=60, speed=7)
@@ -262,7 +288,51 @@ class Game():
         elif self.state == 'crashed':
             self.timer -= 1
             if self.timer <= 0:
-                self.reset_shot()
+                if self.boss and self.probes_left <= 0:
+                    self.state = 'boss_failed'      # out of probes - lose the fight
+                else:
+                    self.reset_shot()
+
+    # ---------------------------------------------------------- boss fight
+    def update_boss(self):
+        event = self.boss.update(1.0 / FPS)
+        if event == 'glow':
+            sounds['claw_glow'].play()
+            x, y = self.boss.claw_pos(self.boss.glowing)
+            self.fx.text(x, y - 50, 'HIT THE CLAW!', YELLOW)
+        elif event == 'attack':
+            # too slow - the boss swipes and you lose a probe
+            sounds['boss_attack'].play()
+            self.probes_left = max(0, self.probes_left - 1)
+            self.fx.shake(14)
+            self.fx.text(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2, 'ATTACK! -1 probe', RED)
+        if self.state == 'aim' and self.probes_left <= 0:
+            self.state = 'boss_failed'
+
+    def probe_hit_boss(self, part):
+        x, y = self.probe.x, self.probe.y
+        if part == 'body':                  # hit the body or a claw that isn't glowing
+            sounds['crash'].play()
+            self.fx.burst(x, y, (255, 150, 60), count=40, speed=6)
+            self.fx.shake(10)
+            self.state = 'crashed'
+            self.timer = CRASH_DELAY
+            return
+        damage = self.boss.take_hit(part)   # 'eye' or glowing 'claw'
+        sounds['boss_hit'].play()
+        self.fx.burst(x, y, RED if part == 'eye' else YELLOW, count=50, speed=7)
+        self.fx.shake(8 + damage * 3)
+        self.fx.text(x, y - 30, '-%d' % damage, RED if part == 'eye' else YELLOW)
+        if self.boss.hp <= 0:
+            sounds['win'].play()
+            bx, by = self.boss.body_pos()
+            self.fx.burst(bx, by, (120, 255, 150), count=120, speed=10)
+            self.fx.shake(20)
+            self.state = 'won'
+            self.select.record_win(self.level_index, 0)
+        else:
+            self.state = 'crashed'          # reuse the crash delay before the next shot
+            self.timer = CRASH_DELAY // 2
 
     # ---------------------------------------------------------- drawing
     def glow(self, color, radius):
@@ -375,7 +445,8 @@ class Game():
         pygame.draw.line(surf, (120, 120, 150), self.start, band_end, 2)
         # trajectory preview
         frames = 600 if self.show_full_path else PREVIEW_FRAMES
-        for i, pt in enumerate(predict_path(self.start, vx, vy, self.planets, frames)):
+        pulls = self.planets + [self.boss] if self.boss else self.planets
+        for i, pt in enumerate(predict_path(self.start, vx, vy, pulls, frames)):
             fade = 1 - i / (frames / 3 + 1) if not self.show_full_path else 0.7
             c = int(255 * max(0.15, fade))
             pygame.draw.circle(surf, (c, c, c), (int(pt[0]), int(pt[1])), 2)
@@ -386,18 +457,114 @@ class Game():
     def draw_hud(self, surf):
         name = small_font.render('Level %d: %s' % (self.level_index + 1, self.data['name']), True, WHITE)
         surf.blit(name, (16, 12))
-        shots = small_font.render('Shots: %d' % self.shots, True, GREY)
-        surf.blit(shots, (16, 38))
-        got = sum(s.collected for s in self.stars)
-        stars = small_font.render('Stars: %d/%d' % (got, len(self.stars)), True, YELLOW)
-        surf.blit(stars, stars.get_rect(topright=(SCREEN_WIDTH - 16, 12)))
+        if not self.boss:           # boss levels show probes left instead
+            shots = small_font.render('Shots: %d' % self.shots, True, GREY)
+            surf.blit(shots, (16, 38))
+        if self.boss:
+            self.draw_boss_hud(surf)
+        else:
+            got = sum(s.collected for s in self.stars)
+            stars = small_font.render('Stars: %d/%d' % (got, len(self.stars)), True, YELLOW)
+            surf.blit(stars, stars.get_rect(topright=(SCREEN_WIDTH - 16, 12)))
         hint = self.data.get('hint')
         if hint and self.state == 'aim' and self.shots < 3:
             h = small_font.render(hint, True, GREY)
             surf.blit(h, h.get_rect(midbottom=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 16)))
         if self.show_full_path:
             dbg = small_font.render('DEBUG: full path (F1)', True, RED)
-            surf.blit(dbg, dbg.get_rect(topright=(SCREEN_WIDTH - 16, 38)))
+            surf.blit(dbg, dbg.get_rect(bottomright=(SCREEN_WIDTH - 16, SCREEN_HEIGHT - 12)))
+
+    def draw_boss_hud(self, surf):
+        # HP bar, top right
+        bar = pygame.Rect(SCREEN_WIDTH - 366, 14, 350, 18)
+        pygame.draw.rect(surf, (45, 12, 16), bar, border_radius=4)
+        fill = bar.copy()
+        fill.width = int(bar.width * self.boss.hp / self.boss.max_hp)
+        pygame.draw.rect(surf, RED, fill, border_radius=4)
+        pygame.draw.rect(surf, RED, bar, 2, border_radius=4)
+        label = small_font.render('BOSS', True, RED)
+        surf.blit(label, label.get_rect(midright=(bar.left - 10, bar.centery)))
+        # probes left, under the level name (replaces the shot counter visually)
+        txt = small_font.render('Probes:', True, GREY)
+        surf.blit(txt, (16, 38))
+        total = self.data.get('probes', 6)
+        for i in range(total):
+            color = CYAN if i < self.probes_left else (40, 50, 70)
+            pygame.draw.circle(surf, color, (112 + i * 18, 50), 6)
+
+    def draw_boss(self, surf):
+        b = self.boss
+        t = pygame.time.get_ticks() / 1000
+        bx, by = b.body_pos()
+        ex, ey = b.eye_pos()
+
+        # arms + claws (drawn first so the body covers the shoulders)
+        for i in range(2):
+            cx, cy = b.claw_pos(i)
+            glowing = b.glowing == i
+            if glowing:
+                # pulsing glow + a ring that shrinks as time runs out
+                pulse = 1 + 0.15 * math.sin(t * 12)
+                g = self.glow((255, 200, 60), int(b.CLAW_RADIUS * 2.6 * pulse))
+                surf.blit(g, g.get_rect(center=(int(cx), int(cy))))
+                frac = b.glow_left / b.claw_window
+                pygame.draw.arc(surf, YELLOW, pygame.Rect(cx - 48, cy - 48, 96, 96),
+                                math.pi / 2, math.pi / 2 + frac * 2 * math.pi, 4)
+            if not boss_images['body']:
+                pygame.draw.line(surf, (40, 120, 70), (bx - 40, by + (i * 2 - 1) * 50), (cx, cy), 22)
+            img = boss_images['claw_glow' if glowing else 'claw'] or None
+            if img:
+                if i == 1:
+                    img = pygame.transform.flip(img, False, True)     # bottom claw = mirrored top claw
+                surf.blit(img, img.get_rect(center=(int(cx), int(cy))))
+            else:
+                color = (255, 215, 80) if glowing else (205, 198, 170)
+                pygame.draw.circle(surf, (235, 185, 50) if glowing else (50, 140, 85), (int(cx), int(cy)), b.CLAW_RADIUS)
+                d = -1 if i == 0 else 1
+                pygame.draw.polygon(surf, color, [(cx - 10, cy), (cx - 55, cy - 18 * d), (cx - 30, cy + 2 * d)])
+                pygame.draw.polygon(surf, color, [(cx - 10, cy), (cx - 50, cy + 22 * d), (cx - 25, cy + 10 * d)])
+
+        # body
+        if boss_images['body']:
+            img = boss_images['body']
+            surf.blit(img, img.get_rect(center=(int(bx), int(by))))
+        else:
+            for k in range(3):      # tentacles
+                tx = bx - 50 + k * 50
+                wob = math.sin(t * 3 + k) * 10
+                pygame.draw.line(surf, (35, 105, 62), (tx, by + 80), (tx + wob, by + 160), 14)
+            for k in range(3):      # spikes
+                sx = bx - 60 + k * 60
+                pygame.draw.polygon(surf, (30, 90, 55), [(sx - 18, by - 95), (sx, by - 150), (sx + 18, by - 95)])
+            pygame.draw.circle(surf, (30, 90, 55), (int(bx), int(by)), b.BODY_RADIUS)
+            pygame.draw.circle(surf, (60, 165, 100), (int(bx) - 8, int(by) - 8), b.BODY_RADIUS - 10)
+            mouth = pygame.Rect(bx - 75, by + 40, 120, 40)
+            pygame.draw.arc(surf, (20, 60, 35), mouth, math.pi, 2 * math.pi, 5)
+
+        # eye - pupil looks at the probe (or the launcher while aiming)
+        hurt = b.hurt_flash > 0
+        img = boss_images['eye_hurt' if hurt else 'eye']
+        if img:
+            surf.blit(img, img.get_rect(center=(int(ex), int(ey))))
+        else:
+            pygame.draw.circle(surf, (20, 50, 30), (int(ex), int(ey)), b.EYE_RADIUS + 4)
+            pygame.draw.circle(surf, (255, 150, 150) if hurt else (240, 236, 220), (int(ex), int(ey)), b.EYE_RADIUS)
+            look = (self.probe.x, self.probe.y) if self.probe and self.probe.state == 'flying' else self.start
+            ang = math.atan2(look[1] - ey, look[0] - ex)
+            px, py = ex + math.cos(ang) * 18, ey + math.sin(ang) * 18
+            pygame.draw.circle(surf, (180, 20, 35), (int(px), int(py)), 26)
+            pygame.draw.ellipse(surf, (15, 0, 5), pygame.Rect(px - 7, py - 20, 14, 40))
+            pygame.draw.circle(surf, WHITE, (int(px) - 8, int(py) - 10), 5)
+
+        # attack effect - red claw-swipe lines across the screen
+        if b.attack_flash > 0:
+            k = b.attack_flash / 0.6
+            tint = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            tint.fill((255, 0, 0, int(70 * k)))
+            for j in range(3):
+                off = j * 40
+                pygame.draw.line(tint, (255, 80, 80, int(200 * k)), (150 + off, 100), (450 + off, 600), 6)
+            surf.blit(tint, (0, 0))
 
     def draw_centered(self, surf, lines):
         """lines = [(text, font, colour), ...] drawn as a block in the middle of the screen."""
@@ -411,15 +578,18 @@ class Game():
             y += font.get_height() + 14
 
     def draw(self, surf):
-        surf.blit(self.background, (0, 0))
-        for p in self.planets:
-            self.draw_planet(surf, p)
-        self.draw_target(surf)
-        for s in self.stars:
-            self.draw_star(surf, s)
         if self.state == 'select':
             self.select.draw(surf, self.background)
             return
+        surf.blit(self.background, (0, 0))
+        for p in self.planets:
+            self.draw_planet(surf, p)
+        if self.target:
+            self.draw_target(surf)
+        for s in self.stars:
+            self.draw_star(surf, s)
+        if self.boss:
+            self.draw_boss(surf)
 
         # launcher pad
         pygame.draw.circle(surf, (60, 60, 90), self.start, 16, 2)
@@ -444,6 +614,18 @@ class Game():
                 ('Click to start', mid_font, YELLOW),
                 ('Esc to quit', small_font, GREY),
             ])
+        elif self.state == 'won' and self.boss:
+            self.draw_centered(surf, [
+                ('BOSS DEFEATED', big_font, (120, 255, 150)),
+                ('Probes used: %d' % self.shots, mid_font, WHITE),
+                ('Click or Enter to continue', small_font, GREY),
+            ])
+        elif self.state == 'boss_failed':
+            self.draw_centered(surf, [
+                ('OUT OF PROBES', big_font, RED),
+                ('%s survived with %d HP' % (self.data['name'], self.boss.hp), mid_font, WHITE),
+                ('Click to try again   -   Esc for level select', small_font, GREY),
+            ])
         elif self.state == 'won':
             got = self.probe.stars_this_shot
             self.draw_centered(surf, [
@@ -462,7 +644,7 @@ class Game():
             self.draw_centered(surf, [
                 ('MISSION COMPLETE', big_font, CYAN),
                 ('Total stars: %d / %d' % (total, sum(len(l.get('stars', [])) for l in LEVELS)), mid_font, YELLOW),
-                ('Click to return to title', small_font, GREY),
+                ('Click to return to level select', small_font, GREY),
             ])
 
 
