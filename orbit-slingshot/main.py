@@ -37,6 +37,7 @@ BG = (8, 8, 20)
 
 PREVIEW_FRAMES = 40             # how far ahead the aiming dots go (frames). Bigger = easier
 CRASH_DELAY = 70                # frames to wait after a crash before you can shoot again
+BANNER_FRAMES = 110             # how long the level name banner shows at the start of a level
 
 
 # ------------------------------------------------------------------ assets (all optional)
@@ -171,6 +172,7 @@ class Game():
         # boss levels: a level with a 'boss' section in levels.py
         self.boss = Boss(self.data['boss']) if 'boss' in self.data else None
         self.probes_left = self.data.get('probes', 6)
+        self.banner_timer = BANNER_FRAMES
         self.reset_shot()
 
     def reset_shot(self):
@@ -250,8 +252,16 @@ class Game():
         self.fx.burst(*self.start, CYAN, count=12, speed=3)
 
     # ---------------------------------------------------------- update
+    def level_label(self):
+        """'Level 7' for normal levels, 'Boss 2' for boss levels (numbered separately)."""
+        if self.boss:
+            return 'Boss %d' % (self.select.bosses.index(self.level_index) + 1)
+        return 'Level %d' % (self.select.normal.index(self.level_index) + 1)
+
     def update(self):
         self.fx.update()
+        if self.banner_timer > 0:
+            self.banner_timer -= 1
         if self.boss and self.state in ('aim', 'flying', 'crashed'):
             self.update_boss()
         # moving planets are frozen while aiming and only move once launched,
@@ -326,7 +336,7 @@ class Game():
         if self.boss.hp <= 0:
             sounds['win'].play()
             bx, by = self.boss.body_pos()
-            self.fx.burst(bx, by, (120, 255, 150), count=120, speed=10)
+            self.fx.burst(bx, by, self.boss.color, count=120, speed=10)
             self.fx.shake(20)
             self.state = 'won'
             self.select.record_win(self.level_index, 0)
@@ -452,10 +462,13 @@ class Game():
             pygame.draw.circle(surf, (c, c, c), (int(pt[0]), int(pt[1])), 2)
         # power meter
         txt = small_font.render('%d%%' % int(power * 100), True, YELLOW if power >= 1 else WHITE)
-        surf.blit(txt, (band_end[0] + 12, band_end[1] - 10))
+        # keep the label on screen and out of the HUD at the top
+        lx = min(max(band_end[0] + 12, 8), SCREEN_WIDTH - txt.get_width() - 8)
+        ly = min(max(band_end[1] - 10, 70), SCREEN_HEIGHT - 30)
+        surf.blit(txt, (lx, ly))
 
     def draw_hud(self, surf):
-        name = small_font.render('Level %d: %s' % (self.level_index + 1, self.data['name']), True, WHITE)
+        name = small_font.render('%s: %s' % (self.level_label(), self.data['name']), True, RED if self.boss else WHITE)
         surf.blit(name, (16, 12))
         if not self.boss:           # boss levels show probes left instead
             shots = small_font.render('Shots: %d' % self.shots, True, GREY)
@@ -497,6 +510,11 @@ class Game():
         t = pygame.time.get_ticks() / 1000
         bx, by = b.body_pos()
         ex, ey = b.eye_pos()
+        # placeholder colours, all worked out from the boss's 'color'
+        skin = b.color
+        shade = tuple(int(c * 0.55) for c in skin)
+        mid = tuple(int(c * 0.7) for c in skin)
+        deep = tuple(int(c * 0.3) for c in skin)
 
         # arms + claws (drawn first so the body covers the shoulders)
         for i in range(2):
@@ -511,7 +529,7 @@ class Game():
                 pygame.draw.arc(surf, YELLOW, pygame.Rect(cx - 48, cy - 48, 96, 96),
                                 math.pi / 2, math.pi / 2 + frac * 2 * math.pi, 4)
             if not boss_images['body']:
-                pygame.draw.line(surf, (40, 120, 70), (bx - 40, by + (i * 2 - 1) * 50), (cx, cy), 22)
+                pygame.draw.line(surf, mid, (bx - 40, by + (i * 2 - 1) * 50), (cx, cy), 22)
             img = boss_images['claw_glow' if glowing else 'claw'] or None
             if img:
                 if i == 1:
@@ -519,7 +537,7 @@ class Game():
                 surf.blit(img, img.get_rect(center=(int(cx), int(cy))))
             else:
                 color = (255, 215, 80) if glowing else (205, 198, 170)
-                pygame.draw.circle(surf, (235, 185, 50) if glowing else (50, 140, 85), (int(cx), int(cy)), b.CLAW_RADIUS)
+                pygame.draw.circle(surf, (235, 185, 50) if glowing else mid, (int(cx), int(cy)), b.CLAW_RADIUS)
                 d = -1 if i == 0 else 1
                 pygame.draw.polygon(surf, color, [(cx - 10, cy), (cx - 55, cy - 18 * d), (cx - 30, cy + 2 * d)])
                 pygame.draw.polygon(surf, color, [(cx - 10, cy), (cx - 50, cy + 22 * d), (cx - 25, cy + 10 * d)])
@@ -532,14 +550,14 @@ class Game():
             for k in range(3):      # tentacles
                 tx = bx - 50 + k * 50
                 wob = math.sin(t * 3 + k) * 10
-                pygame.draw.line(surf, (35, 105, 62), (tx, by + 80), (tx + wob, by + 160), 14)
+                pygame.draw.line(surf, mid, (tx, by + 80), (tx + wob, by + 160), 14)
             for k in range(3):      # spikes
                 sx = bx - 60 + k * 60
-                pygame.draw.polygon(surf, (30, 90, 55), [(sx - 18, by - 95), (sx, by - 150), (sx + 18, by - 95)])
-            pygame.draw.circle(surf, (30, 90, 55), (int(bx), int(by)), b.BODY_RADIUS)
-            pygame.draw.circle(surf, (60, 165, 100), (int(bx) - 8, int(by) - 8), b.BODY_RADIUS - 10)
+                pygame.draw.polygon(surf, shade, [(sx - 18, by - 95), (sx, by - 150), (sx + 18, by - 95)])
+            pygame.draw.circle(surf, shade, (int(bx), int(by)), b.BODY_RADIUS)
+            pygame.draw.circle(surf, skin, (int(bx) - 8, int(by) - 8), b.BODY_RADIUS - 10)
             mouth = pygame.Rect(bx - 75, by + 40, 120, 40)
-            pygame.draw.arc(surf, (20, 60, 35), mouth, math.pi, 2 * math.pi, 5)
+            pygame.draw.arc(surf, deep, mouth, math.pi, 2 * math.pi, 5)
 
         # eye - pupil looks at the probe (or the launcher while aiming)
         hurt = b.hurt_flash > 0
@@ -547,12 +565,12 @@ class Game():
         if img:
             surf.blit(img, img.get_rect(center=(int(ex), int(ey))))
         else:
-            pygame.draw.circle(surf, (20, 50, 30), (int(ex), int(ey)), b.EYE_RADIUS + 4)
+            pygame.draw.circle(surf, deep, (int(ex), int(ey)), b.EYE_RADIUS + 4)
             pygame.draw.circle(surf, (255, 150, 150) if hurt else (240, 236, 220), (int(ex), int(ey)), b.EYE_RADIUS)
             look = (self.probe.x, self.probe.y) if self.probe and self.probe.state == 'flying' else self.start
             ang = math.atan2(look[1] - ey, look[0] - ex)
             px, py = ex + math.cos(ang) * 18, ey + math.sin(ang) * 18
-            pygame.draw.circle(surf, (180, 20, 35), (int(px), int(py)), 26)
+            pygame.draw.circle(surf, b.eye_color, (int(px), int(py)), 26)
             pygame.draw.ellipse(surf, (15, 0, 5), pygame.Rect(px - 7, py - 20, 14, 40))
             pygame.draw.circle(surf, WHITE, (int(px) - 8, int(py) - 10), 5)
 
@@ -565,6 +583,18 @@ class Game():
                 off = j * 40
                 pygame.draw.line(tint, (255, 80, 80, int(200 * k)), (150 + off, 100), (450 + off, 600), 6)
             surf.blit(tint, (0, 0))
+
+    def draw_banner(self, surf):
+        """Level name that fades in and out at the start of a level."""
+        t = self.banner_timer / BANNER_FRAMES           # 1 -> 0
+        alpha = int(255 * min(1, (1 - t) * 5, t * 3))   # quick fade in, slower fade out
+        color = RED if self.boss else CYAN
+        top = self.level_label().upper()
+        title = self.data['name'].upper() if self.boss else self.data['name']
+        for text, font, y in ((top, mid_font, SCREEN_HEIGHT // 2 - 60), (title, big_font, SCREEN_HEIGHT // 2)):
+            img = font.render(text, True, color if font is big_font else WHITE)
+            img.set_alpha(alpha)
+            surf.blit(img, img.get_rect(center=(SCREEN_WIDTH // 2, y)))
 
     def draw_centered(self, surf, lines):
         """lines = [(text, font, colour), ...] drawn as a block in the middle of the screen."""
@@ -606,6 +636,8 @@ class Game():
         self.fx.draw(surf)
         if self.state != 'title':
             self.draw_hud(surf)
+        if self.banner_timer > 0 and self.state in ('aim', 'flying', 'crashed'):
+            self.draw_banner(surf)
 
         if self.state == 'title':
             self.draw_centered(surf, [

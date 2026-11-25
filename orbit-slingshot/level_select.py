@@ -117,8 +117,13 @@ class LevelSelect():
 
         label = 'BOSS %d' % (self.bosses.index(index) + 1) if is_boss else str(self.normal.index(index) + 1)
         text = (self.small_font if is_boss else self.mid_font).render(label, True, WHITE)
-        text_y = rect.centery if is_boss else rect.y + 26     # bosses have no stars, so centre the text
+        beaten_boss = is_boss and self.completed(index)
+        text_y = rect.y + 26 if (beaten_boss or not is_boss) else rect.centery
         surf.blit(text, text.get_rect(center=(rect.centerx, text_y)))
+        if beaten_boss:
+            tag = self.small_font.render('DEFEATED', True, (120, 255, 150))
+            tag = pygame.transform.smoothscale(tag, (int(tag.get_width() * 0.75), int(tag.get_height() * 0.75)))
+            surf.blit(tag, tag.get_rect(center=(rect.centerx, rect.bottom - 18)))
 
         # stars row (normal levels with stars only)
         total = len(self.levels[index].get('stars', []))

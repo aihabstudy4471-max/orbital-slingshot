@@ -212,6 +212,8 @@ class Boss():
         self.claw_damage = data.get('claw_damage', 3)
         self.eye_damage = data.get('eye_damage', 1)
         self.mass = data.get('mass', 4000)            # gravity strength, 0 = no pull
+        self.color = tuple(data.get('color', (60, 165, 100)))       # skin colour (placeholder art)
+        self.eye_color = tuple(data.get('eye_color', (180, 20, 35)))  # iris colour (placeholder art)
         self.reset()
 
     def reset(self):
