@@ -25,7 +25,7 @@ SCREEN_WIDTH = 1000
 SCREEN_HEIGHT = 700
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption('Orbit Slingshot')
-canvas = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))   # draw here, then blit with screen shake
+canvas = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))   
 clock = pygame.time.Clock()
 
 WHITE = (255, 255, 255)
@@ -35,9 +35,9 @@ CYAN = (90, 230, 255)
 RED = (255, 80, 80)
 BG = (8, 8, 20)
 
-PREVIEW_FRAMES = 40             # how far ahead the aiming dots go (frames). Bigger = easier
-CRASH_DELAY = 70                # frames to wait after a crash before you can shoot again
-BANNER_FRAMES = 110             # how long the level name banner shows at the start of a level
+PREVIEW_FRAMES = 40             
+CRASH_DELAY = 70               
+BANNER_FRAMES = 110            
 
 
 # ------------------------------------------------------------------ assets (all optional)
@@ -87,7 +87,7 @@ big_font = load_font('main', 64)
 mid_font = load_font('main', 32)
 small_font = load_font('main', 20)
 
-# art from the designer goes in assets/ - anything missing falls back to drawn shapes
+
 probe_img = load_image('probe', size=(PROBE_RADIUS * 4, PROBE_RADIUS * 4))
 target_img = load_image('target', size=(80, 80))
 star_img = load_image('star', size=(STAR_RADIUS * 2, STAR_RADIUS * 2))
@@ -103,7 +103,7 @@ sounds = {
     'claw_glow': load_sound('sfx', 'claw_glow'),
 }
 
-# boss pieces from the designer (see assets/README.md). Missing = drawn placeholder shapes
+
 boss_images = {
     'body': load_image('boss', 'boss_body', size=(Boss.BODY_RADIUS * 2 + 60, Boss.BODY_RADIUS * 2 + 60)),
     'eye': load_image('boss', 'boss_eye', size=(Boss.EYE_RADIUS * 2, Boss.EYE_RADIUS * 2)),
@@ -147,7 +147,7 @@ def draw_star_shape(surf, x, y, radius, color, spin=0.0, width=0):
 # ------------------------------------------------------------------ game state
 class Game():
     def __init__(self):
-        self.state = 'title'        # 'title', 'aim', 'flying', 'crashed', 'won', 'finished'
+        self.state = 'title'        
         self.level_index = 0
         self.best_stars = [0] * len(LEVELS)
         self.fx = FX(mid_font)
@@ -239,7 +239,7 @@ class Game():
 
     def launch(self, mouse):
         vx, vy, power = launch_velocity(self.start, mouse)
-        if power < 0.08:            # tiny drag = probably a misclick, ignore it
+        if power < 0.08:            
             return
         if self.boss:
             if self.probes_left <= 0:
