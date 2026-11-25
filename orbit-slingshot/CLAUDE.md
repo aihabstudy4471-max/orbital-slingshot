@@ -58,6 +58,8 @@ Esc = back. Debug: F1 = show full predicted path, F2 = skip level (user's keyboa
 without Fn – they may rebind these to letters).
 
 ## Working with the user
+- Git: push straight to `main` (user's choice, simpler for them). The user pushes their own
+  changes before asking for work and runs `git pull` afterwards.
 - The user is learning; they want to understand the code and write some of it themselves.
   Explain where things go, and offer "fill in the blanks" versions when they ask.
 - They added the gravity number label + `draw_gravity_rings` (their own values) in main.py.
