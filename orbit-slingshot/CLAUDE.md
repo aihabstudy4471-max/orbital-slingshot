@@ -38,6 +38,18 @@
 - Tuning constants are at the top of `classes.py` (launch speed, drag distance, flight time limit)
   and `main.py` (`PREVIEW_FRAMES` = how much of the aiming path is shown).
 
+## Web build (pygbag) - the jam submission
+- `main()` is `async` with `await asyncio.sleep(0)` each frame - REQUIRED for pygbag, keep it.
+- `WEB = sys.platform == 'emscripten'`: in the browser, Esc on the title doesn't quit.
+- Audio must be .ogg (wav/mp3 can fail in browsers). `asset()` looks for .ogg before .wav.
+- Test locally:  `pygbag orbit-slingshot`  (run from the repo root) -> http://localhost:8000
+  (when served from localhost, the pygbag loader fetches pygame from localhost:8000, so a plain
+  http.server on another port does NOT work - use pygbag's own server).
+- itch.io:  `pygbag --archive orbit-slingshot` -> `orbit-slingshot/build/web.zip` (upload as HTML,
+  "played in the browser", viewport 1000x700). build/ and *-pygbag.* leftovers are gitignored.
+- "BrowserFS not found" / browserfs.min.js 404 in the console is harmless (missing on pygbag's CDN).
+- Tested in headless Chromium: title, level select, a full Level 1 shot (3 stars), boss level, 60 FPS.
+
 ## Level order
 Levels 1-20 = normal (difficulty ramps), then Boss 1-5. `level_select.py` numbers normal levels and
 bosses separately ("Level 7", "Boss 2"). After Level 20, "next level" goes into Boss 1.
@@ -91,6 +103,7 @@ without Fn – they may rebind these to letters).
 - [x] Placeholder sfx + music loop (tools/make_placeholder_sounds.py, never overwrites real files)
 - [ ] Drop in designer's art + real sounds + music (see assets/README.md)
 - [ ] Polish: menus, transitions, juice
-- [ ] Build/package for submission (leave the last day free for this)
+- [x] Web build with pygbag, tested in a browser (see "Web build" above)
+- [ ] Upload web.zip to the jam page + test it there (and on another computer)
 
 Update this file at the end of each session with what changed and what's next.

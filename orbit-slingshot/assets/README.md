@@ -2,7 +2,8 @@
 
 Drop files in here with these names and the game picks them up automatically.
 Anything missing just gets drawn as a simple shape, so add things whenever they're ready.
-PNG with transparency is best for sprites. The file extension doesn't matter as long as the
+PNG with transparency is best for sprites. **Use .ogg for sounds and music** (the web version
+needs it; .wav and .mp3 can fail in some browsers). The file extension doesn't matter as long as the
 name matches (`probe.png` and `probe.jpg` both work).
 
 | File | What it is | Size it gets drawn at |
@@ -17,16 +18,16 @@ name matches (`probe.png` and `probe.jpg` both work).
 | `boss/boss_claw.png` / `boss/boss_claw_glow.png` | ONE claw pointing left (top claw) + glowing version. Code flips it for the bottom claw | 90 x 90 |
 | `fonts/main.ttf` | Font for all text | – |
 | `music.ogg` | Looping background music | – |
-| `sfx/launch.wav` | Probe launched | – |
-| `sfx/crash.wav` | Probe hits a planet | – |
-| `sfx/win.wav` | Target reached | – |
-| `sfx/star.wav` | Star collected | – |
-| `sfx/boss_hit.wav` | Boss eye / claw hit | – |
-| `sfx/boss_attack.wav` | Boss attacks (claw timer ran out) | – |
-| `sfx/claw_glow.wav` | A claw starts glowing | – |
+| `sfx/launch.ogg` | Probe launched | – |
+| `sfx/crash.ogg` | Probe hits a planet | – |
+| `sfx/win.ogg` | Target reached | – |
+| `sfx/star.ogg` | Star collected | – |
+| `sfx/boss_hit.ogg` | Boss eye / claw hit | – |
+| `sfx/boss_attack.ogg` | Boss attacks (claw timer ran out) | – |
+| `sfx/claw_glow.ogg` | A claw starts glowing | – |
 
 Placeholder sounds
-- `sfx/*.wav` and `music.wav` are currently computer-generated placeholders made by
+- `sfx/*.ogg` and `music.ogg` are currently computer-generated placeholders made by
   `python tools/make_placeholder_sounds.py`. Just overwrite them with real sounds (same names).
   Re-running the script won't touch files that already exist (unless you add `--force`).
 

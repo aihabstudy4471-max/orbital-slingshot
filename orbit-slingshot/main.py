@@ -8,12 +8,15 @@ Controls
   F1           (debug) show the full predicted path
   F2           (debug) skip to next level
 """
+import asyncio
 import math
 import os
 import random
+import sys
 import pygame
 
 pygame.init()
+WEB = sys.platform == 'emscripten'      # True when running in the browser (pygbag)
 
 from classes import (Probe, Boss, build_level, launch_velocity, predict_path, make_glow, FX,
                      FPS, MAX_DRAG, PROBE_RADIUS, STAR_RADIUS)
@@ -47,7 +50,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 def asset(*parts):
     """Find a file in assets/ with or without its extension. Returns None if missing."""
     path = os.path.join(BASE_DIR, 'assets', *parts)
-    for ext in ('', '.png', '.jpg', '.wav', '.ogg', '.mp3', '.ttf', '.otf'):
+    for ext in ('', '.png', '.jpg', '.ogg', '.wav', '.mp3', '.ttf', '.otf'):   # .ogg first: best for the web build
         if os.path.isfile(path + ext):
             return path + ext
     return None
@@ -204,7 +207,7 @@ class Game():
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 if self.state == 'title':
-                    return False
+                    return WEB          # Esc on the title quits - but not in the browser
                 self.state = 'select'
             elif event.key == pygame.K_F1:
                 self.show_full_path = not self.show_full_path
@@ -644,7 +647,7 @@ class Game():
                 ('ORBIT SLINGSHOT', big_font, CYAN),
                 ('Use gravity to guide your probe to the target', small_font, WHITE),
                 ('Click to start', mid_font, YELLOW),
-                ('Esc to quit', small_font, GREY),
+                ('' if WEB else 'Esc to quit', small_font, GREY),
             ])
         elif self.state == 'won' and self.boss:
             self.draw_centered(surf, [
@@ -681,7 +684,7 @@ class Game():
 
 
 # ------------------------------------------------------------------ main loop
-def main():
+async def main():
     game = Game()
     running = True
     while running:
@@ -696,8 +699,9 @@ def main():
         screen.fill(BG)
         screen.blit(canvas, game.fx.offset())
         pygame.display.flip()
+        await asyncio.sleep(0)          # lets the browser update (needed for the web version)
     pygame.quit()
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

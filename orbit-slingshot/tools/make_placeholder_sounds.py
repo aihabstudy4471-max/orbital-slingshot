@@ -3,8 +3,11 @@
     python tools/make_placeholder_sounds.py            # only creates files that don't exist yet
     python tools/make_placeholder_sounds.py --force    # overwrite everything
 
-Replace any of them with real sounds whenever you like - just keep the same file name
-(e.g. assets/sfx/launch.wav). Real sounds should NOT be overwritten unless you use --force.
+Replace any of them with real sounds whenever you like - just keep the same name
+(e.g. assets/sfx/launch.ogg). Existing sounds are NOT overwritten unless you use --force.
+
+The script writes .wav files. For the web version .ogg is better (smaller, works in every
+browser) - if you have ffmpeg:  ffmpeg -i launch.wav -c:a libvorbis launch.ogg
 """
 import math
 import os
@@ -84,7 +87,8 @@ def normalize(samples, peak=0.85):
 
 def save(path, samples):
     path = os.path.join(BASE, path)
-    if os.path.exists(path) and not FORCE:
+    already = os.path.exists(path) or os.path.exists(path[:-4] + '.ogg')
+    if already and not FORCE:
         print('skip (already exists):', path)
         return
     os.makedirs(os.path.dirname(path), exist_ok=True)
