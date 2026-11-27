@@ -12,6 +12,8 @@
   main file + separate classes file.
 
 ## Files
+- Repo root `README.md` = the public front page (jam judges see it; GIF from `media/`). The
+  `orbit-slingshot/README.md` just points to it. Fill-in credits are the user's to edit.
 - `main.py` – window, asset loading, `Game` class (states, input, drawing), main loop. Run this.
 - `classes.py` – physics + game objects (`Planet`, `Target`, `Star`, `Probe`, `FX`). No window code,
   so it can be imported by tools.
