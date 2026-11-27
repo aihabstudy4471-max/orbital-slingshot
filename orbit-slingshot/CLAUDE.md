@@ -42,11 +42,15 @@
 - `main()` is `async` with `await asyncio.sleep(0)` each frame - REQUIRED for pygbag, keep it.
 - `WEB = sys.platform == 'emscripten'`: in the browser, Esc on the title doesn't quit.
 - Audio must be .ogg (wav/mp3 can fail in browsers). `asset()` looks for .ogg before .wav.
-- Test locally:  `pygbag orbit-slingshot`  (run from the repo root) -> http://localhost:8000
-  (when served from localhost, the pygbag loader fetches pygame from localhost:8000, so a plain
-  http.server on another port does NOT work - use pygbag's own server).
-- itch.io:  `pygbag --archive orbit-slingshot` -> `orbit-slingshot/build/web.zip` (upload as HTML,
-  "played in the browser", viewport 1000x700). build/ and *-pygbag.* leftovers are gitignored.
+- ALWAYS build with `tools/build_web.py` (user wanted a tidy build): it copies only the game .py
+  files (GAME_FILES list - add new game modules there!) + asset files into build/web-src/ and runs
+  pygbag there, so CLAUDE.md / READMEs / tools are not in the upload.
+  - `python orbit-slingshot/tools/build_web.py`        -> `orbit-slingshot/build/web.zip` for itch.io
+  - `python orbit-slingshot/tools/build_web.py --test` -> local test server at http://localhost:8000
+- When served from localhost, the pygbag loader fetches pygame from localhost:8000, so a plain
+  http.server on another port does NOT work - use pygbag's own server (--test).
+- itch.io: upload web.zip as HTML, "played in the browser", viewport 1000x700.
+  build/ and *-pygbag.* leftovers are gitignored.
 - "BrowserFS not found" / browserfs.min.js 404 in the console is harmless (missing on pygbag's CDN).
 - Tested in headless Chromium: title, level select, a full Level 1 shot (3 stars), boss level, 60 FPS.
 
